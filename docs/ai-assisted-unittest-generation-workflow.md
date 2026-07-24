@@ -8,6 +8,49 @@ Automatically generate and validate unit tests for code changes while ensuring c
 
 # Workflow
 
+## Visual Workflow Diagram
+
+```mermaid
+flowchart TD
+    Start(["Developer opens or updates PR"]) --> Step1["1. Code Quality Checks<br/>(Linting, Formatting, Static Analysis)"]
+
+    Step1 -- "❌ Any Check Fails" --> Stop1["Stop Workflow & Report Failures"]
+    Step1 -- "✅ All Pass" --> Step2["2. Run Existing Unit Test Suite"]
+
+    Step2 -- "❌ Any Test Fails" --> Stop2["Stop Workflow & Report Failures"]
+    Step2 -- "✅ All Pass" --> Step3["3. AI-Assisted Code Review"]
+
+    Step3 -- "❌ Blocking Issues Found" --> Stop3["Stop Workflow & Request Developer Review"]
+    Step3 -- "✅ No Blocking Issues" --> Step4["4. AI Generates or Updates Unit Tests"]
+
+    Step4 --> Step5["5. Execute Complete Unit Test Suite<br/>(Existing + New Tests)"]
+
+    Step5 -- "✅ All Tests Pass" --> Step6["6. Create Temporary AI Branch<br/>(ai/generated-tests/pr-number)"]
+    Step5 -- "❌ Tests Fail" --> RetryCheck{"Retry Attempt <= 3?"}
+
+    RetryCheck -- "Yes" --> AIFix["AI Analyzes & Applies Fix<br/>(Fix tests or diff-related prod code)"]
+    AIFix --> Step5
+    RetryCheck -- "No" --> Stop4["Stop Workflow & Notify Developer"]
+
+    Step6 --> Step7["7. Create AI Pull Request<br/>(Target: Feature Branch)"]
+    Step7 --> Step8["8. Auto-Merge AI PR & Delete AI Branch"]
+    Step8 --> Step9["9. Re-run CI Validation on Feature Branch"]
+    Step9 --> End(["10. End Workflow"])
+
+    %% Styling
+    classDef startEnd fill:#1f2937,stroke:#6b7280,stroke-width:2px,color:#fff;
+    classDef process fill:#1e293b,stroke:#3b82f6,stroke-width:1px,color:#f8fafc;
+    classDef fail fill:#451a1a,stroke:#ef4444,stroke-width:1px,color:#fca5a5;
+    classDef decision fill:#312e81,stroke:#6366f1,stroke-width:1px,color:#e0e7ff;
+    
+    class Start,End startEnd;
+    class Step1,Step2,Step3,Step4,Step5,Step6,Step7,Step8,Step9,AIFix process;
+    class Stop1,Stop2,Stop3,Stop4 fail;
+    class RetryCheck decision;
+```
+
+## Detailed Text Workflow
+
 ```text
 Developer opens or updates a Pull Request
                 │
