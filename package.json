@@ -1,0 +1,19 @@
+{
+  "name": "test-report",
+  "version": "1.0.0",
+  "description": "Automated test reports portal",
+  "repository": {
+    "type": "git",
+    "url": "git@thuongdv:thuongdv/test-report.git"
+  },
+  "license": "MIT",
+  "author": "thuongdv1011@gmail.com",
+  "type": "commonjs",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
