@@ -9,11 +9,26 @@
   "license": "MIT",
   "author": "thuongdv1011@gmail.com",
   "type": "commonjs",
+  "packageManager": "npm@11.7.0",
   "main": "index.js",
   "directories": {
     "doc": "docs"
   },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "format": "turbo format",
+    "test": "turbo test",
+    "dev:api": "npm run start:dev -w api",
+    "build:api": "npm run build -w api"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "turbo": "^2.10.7"
   }
 }
