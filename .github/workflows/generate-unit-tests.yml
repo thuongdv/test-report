@@ -1,0 +1,129 @@
+name: AI Unit Test Generation
+
+on:
+  workflow_run:
+    workflows: ["PR Validation"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate-tests:
+    name: Generate & Validate Unit Tests
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      !startsWith(github.event.workflow_run.head_branch, 'ai/')
+    runs-on: ubuntu-latest
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-2.5-flash' }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+    steps:
+      - name: Checkout PR Branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Detect Changed Source Files
+        id: detect
+        run: |
+          BASE_REF="${{ github.event.workflow_run.pull_requests[0].base.ref || 'main' }}"
+          echo "Comparing against base branch: origin/$BASE_REF"
+          
+          # List changed files against base branch
+          CHANGED=$(git diff --name-only "origin/$BASE_REF...HEAD" || true)
+          
+          # Filter for production source files only (*.ts, *.tsx, *.js, *.jsx)
+          # Ignore spec/test, markdown, docs, github workflows, package files, configs
+          FILTERED_FILES=""
+          for FILE in $CHANGED; do
+            if [[ "$FILE" =~ \.(ts|tsx|js|jsx)$ ]] && \
+               [[ ! "$FILE" =~ \.(spec|test)\.(ts|tsx|js|jsx)$ ]] && \
+               [[ ! "$FILE" =~ ^\.github/ ]] && \
+               [[ ! "$FILE" =~ ^scripts/ ]] && \
+               [[ ! "$FILE" =~ ^prompts/ ]] && \
+               [[ ! "$FILE" =~ package.*\.json$ ]] && \
+               [[ ! "$FILE" =~ tsconfig.*\.json$ ]]; then
+              if [ -f "$FILE" ]; then
+                FILTERED_FILES="$FILTERED_FILES $FILE"
+              fi
+            fi
+          done
+          
+          FILTERED_FILES=$(echo "$FILTERED_FILES" | xargs)
+          
+          if [ -z "$FILTERED_FILES" ]; then
+            echo "No production source files changed in this PR."
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Changed source files detected: $FILTERED_FILES"
+            echo "$FILTERED_FILES" > changed_files.txt
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Initial Unit Test Generation
+        if: steps.detect.outputs.has_changes == 'true'
+        run: |
+          npx ts-node scripts/generate-tests.ts $(cat changed_files.txt)
+
+      - name: Validate & Retry Loop (Up to 3 Attempts)
+        if: steps.detect.outputs.has_changes == 'true'
+        run: |
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+          SUCCESS=false
+
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "=========================================="
+            echo "  Validation Attempt $ATTEMPT of $MAX_ATTEMPTS"
+            echo "=========================================="
+
+            echo "Running format..."
+            npm run format || true
+
+            echo "Running linter auto-fix..."
+            npm run lint -- --fix || true
+
+            echo "Running unit test suite..."
+            if npm test > test_run.log 2>&1; then
+              echo "✅ All tests passed successfully on attempt $ATTEMPT!"
+              cat test_run.log
+              SUCCESS=true
+              break
+            else
+              echo "❌ Unit test suite failed on attempt $ATTEMPT."
+              cat test_run.log
+              
+              if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+                echo "Attempting AI fix for failing tests (Attempt $((ATTEMPT + 1)))..."
+                npx ts-node scripts/generate-tests.ts --fix-mode --error-output test_run.log $(cat changed_files.txt)
+              fi
+            fi
+            
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+
+          if [ "$SUCCESS" != "true" ]; then
+            echo "::error::Generated unit tests failed validation after $MAX_ATTEMPTS attempts."
+            exit 1
+          fi
+
+      - name: Create AI Pull Request
+        if: steps.detect.outputs.has_changes == 'true'
+        run: |
+          npx ts-node scripts/create-pr.ts
