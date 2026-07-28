@@ -59,6 +59,8 @@ jobs:
 
       - name: Run AI Code Review
         id: review
+        env:
+          GEMINI_CLI_TRUST_WORKSPACE: true
         run: |
           DIFF_CONTENT=$(git diff "origin/${{ github.base_ref }}...HEAD")
 
