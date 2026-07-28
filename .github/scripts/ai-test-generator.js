@@ -184,6 +184,7 @@ async function main() {
   const args = process.argv.slice(2);
   const baseRefIdx = args.indexOf('--base-ref');
   const baseRef = baseRefIdx !== -1 ? args[baseRefIdx + 1] : 'origin/main';
+  const skipCodeReview = args.includes('--skip-code-review');
 
   console.log(`🚀 AI-Assisted Unit Test Generation (base: ${baseRef})`);
 
@@ -191,7 +192,11 @@ async function main() {
   const changedFiles = getChangedFiles(baseRef);
   const diff = getGitDiff(baseRef);
 
-  await runCodeReview(diff, changedFiles);
+  if (skipCodeReview) {
+    console.log('\nℹ️  Code review skipped (--skip-code-review).');
+  } else {
+    await runCodeReview(diff, changedFiles);
+  }
   await runTestGeneration(diff, changedFiles);
   await runTestsWithRetry(diff, changedFiles);
 
