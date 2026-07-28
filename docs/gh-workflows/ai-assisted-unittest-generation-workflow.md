@@ -243,23 +243,13 @@ The workflow is considered successful when:
 # Expected GitHub Actions Jobs
 
 1. Checkout repository
-2. Install dependencies
-3. Run formatter
-4. Run linter
-5. Run existing unit tests
-6. AI-assisted code review
-7. AI generate/update unit tests
-8. Run complete unit test suite
-9. AI retry loop (maximum 3 attempts)
-10. Create temporary AI branch
-11. Commit generated tests
-12. Push AI branch
-13. Create AI pull request
-14. Wait for required checks
-15. Auto-merge AI pull request into the developer's feature branch
-16. Delete temporary AI branch
-17. Re-run CI on the updated developer branch
-18. Publish workflow summary
+2. Setup Node.js & install dependencies
+3. Code quality checks (formatter + linter)
+4. Run existing unit tests
+5. AI review, generate & test with retry loop (single script invocation)
+6. Create temporary AI branch & commit generated tests
+7. Create AI pull request & auto-merge into the developer's feature branch
+8. Publish workflow summary
 
 ---
 
