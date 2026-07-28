@@ -4,11 +4,15 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+# Cancel in-flight runs for the same PR
+concurrency:
+  group: ai-tests-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
   pull-requests: write
   checks: write
-  statuses: write
 
 jobs:
   ai-unittest-generation:
@@ -22,7 +26,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 2. Setup Node.js & Cache Dependencies
+      - name: 2. Setup Node.js & install dependencies
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -36,45 +40,25 @@ jobs:
             npm install
           fi
 
-      - name: 3. Code Quality Checks (Formatter & Linter)
+      - name: 3. Code Quality Checks
         run: |
-          echo "Executing Step 1: Code Quality Checks..."
-          if npm run | grep -q "format:check"; then
-            npm run format:check
-          fi
-          if npm run | grep -q "lint"; then
-            npm run lint
-          fi
+          echo "Running formatter check..."
+          npx turbo format:check
+          echo "Running linter..."
+          npm run lint
 
       - name: 4. Run Existing Unit Test Suite
-        run: |
-          echo "Executing Step 2: Existing Unit Test Suite..."
-          if npm run | grep -q "test"; then
-            npm test
-          fi
+        run: npm test
 
-      - name: 5. Perform AI-Assisted Code Review
+      - name: 5. AI Review, Generate & Test (with retry)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
         run: |
-          node .github/scripts/ai-test-generator.js --mode review --base-ref "origin/${{ github.base_ref }}"
+          node .github/scripts/ai-test-generator.js \
+            --base-ref "origin/${{ github.base_ref }}"
 
-      - name: 6. Generate or Update Unit Tests (AI)
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          node .github/scripts/ai-test-generator.js --mode generate --base-ref "origin/${{ github.base_ref }}"
-
-      - name: 7. Execute Complete Unit Test Suite & AI Retry Loop
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          node .github/scripts/ai-test-generator.js --mode retry-loop --base-ref "origin/${{ github.base_ref }}"
-
-      - name: 8. Create Temporary AI Branch & Commit
+      - name: 6. Create Temporary AI Branch & Commit
         id: create-branch
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -88,7 +72,7 @@ jobs:
           if [ -n "$(git status --porcelain)" ]; then
             git checkout -b "${BRANCH_NAME}"
             git add .
-            git commit -m "test(ai): auto-generated unit tests and required fixes for PR #${PR_NUMBER}"
+            git commit -m "test(ai): auto-generated unit tests for PR #${PR_NUMBER}"
             git push origin "${BRANCH_NAME}" --force
             echo "has_changes=true" >> $GITHUB_OUTPUT
           else
@@ -96,7 +80,7 @@ jobs:
             echo "has_changes=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: 9. Create AI Pull Request & Auto-Merge
+      - name: 7. Create AI Pull Request & Auto-Merge
         if: steps.create-branch.outputs.has_changes == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -109,22 +93,23 @@ jobs:
             --title "test(ai): generated unit tests for PR #${PR_NUMBER}" \
             --body "Automated AI-assisted unit test generation for PR #${PR_NUMBER}.
 
-            ### Summary of Changes
-            - Auto-generated / updated unit test suite
-            - Verified all unit tests pass cleanly
-            - Retries performed: <= 3 attempts" \
+          ### Summary
+          - Auto-generated / updated unit tests
+          - All unit tests verified passing
+          - Max retry attempts: 3" \
             --head "${BRANCH_NAME}" \
             --base "${HEAD_REF}")
 
           echo "AI PR created: ${AI_PR_URL}"
 
-          echo "Auto-merging AI PR into feature branch ${HEAD_REF}..."
-          gh pr merge "${AI_PR_URL}" --auto --squash --delete-branch || gh pr merge "${AI_PR_URL}" --merge --delete-branch
+          # Auto-merge requires branch protection with auto-merge enabled.
+          echo "Auto-merging AI PR into ${HEAD_REF}..."
+          gh pr merge "${AI_PR_URL}" --auto --squash --delete-branch
 
-      - name: 10. Re-run CI Validation & Workflow Summary
+      - name: 8. Workflow Summary
         if: always()
         run: |
-          echo "### 🧪 AI-Assisted Unit Test Generation Workflow Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **PR Number**: #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Target Feature Branch**: \`${{ github.head_ref }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status**: Completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "### 🧪 AI-Assisted Unit Test Generation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **PR**: #${{ github.event.pull_request.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: \`${{ github.head_ref }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
