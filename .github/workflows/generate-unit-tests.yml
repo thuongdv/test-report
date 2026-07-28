@@ -25,16 +25,16 @@ jobs:
       PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
     steps:
       - name: Checkout PR Branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_branch }}
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "24"
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
@@ -44,10 +44,10 @@ jobs:
         run: |
           BASE_REF="${{ github.event.workflow_run.pull_requests[0].base.ref || 'main' }}"
           echo "Comparing against base branch: origin/$BASE_REF"
-          
+
           # List changed files against base branch
           CHANGED=$(git diff --name-only "origin/$BASE_REF...HEAD" || true)
-          
+
           # Filter for production source files only (*.ts, *.tsx, *.js, *.jsx)
           # Ignore spec/test, markdown, docs, github workflows, package files, configs
           FILTERED_FILES=""
@@ -64,9 +64,9 @@ jobs:
               fi
             fi
           done
-          
+
           FILTERED_FILES=$(echo "$FILTERED_FILES" | xargs)
-          
+
           if [ -z "$FILTERED_FILES" ]; then
             echo "No production source files changed in this PR."
             echo "has_changes=false" >> "$GITHUB_OUTPUT"
