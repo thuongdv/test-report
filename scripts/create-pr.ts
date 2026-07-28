@@ -1,6 +1,5 @@
 import { Octokit } from '@octokit/rest';
 import { execSync } from 'child_process';
-import * as fs from 'fs';
 
 function runGit(command: string): string {
   try {
