@@ -70,7 +70,7 @@ export class CodeReviewAgent implements IAgent {
     // 4. Post review comment to PR
     const prNumber = context.prNumber || context.env.PR_NUMBER;
     if (prNumber) {
-      const isBlocking = /BLOCKING|CRITICAL/i.test(reviewOutput);
+      const isBlocking = /STATUS:\s*BLOCKING|\[BLOCKING\]|\[CRITICAL\]/i.test(reviewOutput);
       const icon = isBlocking ? '🚨' : '✅';
       const commentBody = `## ${icon} Gemini AI Code Review Summary\n\n${reviewOutput}`;
 
@@ -90,7 +90,7 @@ export class CodeReviewAgent implements IAgent {
     }
 
     // 5. Determine review status
-    const isBlocking = /BLOCKING|CRITICAL/i.test(reviewOutput);
+    const isBlocking = /STATUS:\s*BLOCKING|\[BLOCKING\]|\[CRITICAL\]/i.test(reviewOutput);
 
     if (isBlocking) {
       this.logger.agent('❌ Review identified BLOCKING/CRITICAL issues.');

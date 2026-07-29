@@ -4,11 +4,17 @@ module.exports = {
   rootDir: '.',
   testRegex: '.*\\.spec\\.ts$',
   transform: {
-    '^.+\\.ts$': 'ts-jest',
+    '^.+\\.[tj]s$': [
+      'ts-jest',
+      {
+        tsconfig: {
+          allowJs: true,
+        },
+      },
+    ],
   },
-  // @octokit/rest ships ESM-only; we must transform it for Jest CJS mode
   transformIgnorePatterns: [
-    'node_modules/(?!(@octokit|universal-user-agent|before-after-hook)/)',
+    '/node_modules/(?!(@octokit|universal-user-agent|before-after-hook)/)',
   ],
   testEnvironment: 'node',
   collectCoverageFrom: ['agents/**/*.ts', '!agents/**/*.spec.ts', '!agents/cli.ts'],
