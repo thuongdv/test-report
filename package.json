@@ -26,7 +26,8 @@
     "format:check": "turbo format:check",
     "test": "turbo test",
     "dev:api": "npm run start:dev -w api",
-    "build:api": "npm run build -w api"
+    "build:api": "npm run build -w api",
+    "coverage": "turbo coverage"
   },
   "devDependencies": {
     "@google/generative-ai": "^0.24.0",
