@@ -1,39 +1,73 @@
-# GitHub Actions Pipeline: PR Validation & AI Unit Test Generation
+# GitHub Actions Pipeline: PR Validation & AI Agent Architecture
 
-This directory documents the multi-stage GitHub Actions pipeline designed to validate Pull Requests and automatically generate unit tests for modified source files using Gemini.
+This directory documents the multi-stage GitHub Actions pipeline designed to validate Pull Requests and automatically generate unit tests using modular AI agents.
 
 ---
 
-## 🏗️ Workflows Architecture
+## 🏗️ Architecture Overview
+
+The pipeline uses a **modular Agent-Skill architecture** where each AI task is handled by a dedicated agent composed of reusable skills.
 
 ```text
 Developer creates/updates PR
             │
             ▼
 ┌──────────────────────────────────────┐
-│ .github/workflows/pr-validation.yml   │
+│ .github/workflows/pr-validation.yml  │
 ├──────────────────────────────────────┤
 │ 1. npm run format:check              │
 │ 2. npm run lint                      │
 │ 3. npm test                          │
-│ 4. Gemini AI PR Review (CLI)         │
+│ 4. CodeReviewAgent (cli.ts review)   │
 └──────────────────────────────────────┘
             │
       (Success Only)
             ▼
-┌───────────────────────────────────────────────┐
-│ .github/workflows/generate-unit-tests.yml     │
-├───────────────────────────────────────────────┤
-│ 1. Detect changed production source files     │
-│ 2. Generate NestJS/Jest unit tests via Gemini │
-│ 3. Validation & Retry Loop (Up to 3 Attempts) │
-│    - npm run format                           │
-│    - npm run lint -- --fix                    │
-│    - npm test                                 │
-│ 4. Commit generated tests to temporary branch │
-│ 5. Create PR targeting developer's branch     │
-└───────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────┐
+│ .github/workflows/generate-unit-tests.yml         │
+├───────────────────────────────────────────────────┤
+│ 1. UnitTestGeneratorAgent (cli.ts generate-tests) │
+│    - Detect changed production source files       │
+│    - Generate Jest unit tests via Gemini          │
+│    - Validation & Retry Loop (Up to 3 Attempts)  │
+│ 2. CreatePRAgent (cli.ts create-pr)               │
+│    - Commit tests to ai/ branch & open PR         │
+└───────────────────────────────────────────────────┘
 ```
+
+---
+
+## 🤖 Agent Architecture
+
+All agents live under `scripts/agents/` and are invoked via a unified CLI:
+
+```bash
+npx ts-node scripts/agents/cli.ts <agent-name> [options]
+```
+
+### Agents
+
+| Agent | CLI Command | Description |
+|-------|-------------|-------------|
+| `CodeReviewAgent` | `cli.ts review` | AI-powered code review on PR diffs |
+| `UnitTestGeneratorAgent` | `cli.ts generate-tests` | Generate & validate unit tests |
+| `CreatePRAgent` | `cli.ts create-pr` | Create/update AI PR with generated tests |
+
+### Skills (Reusable Components)
+
+| Skill | Description |
+|-------|-------------|
+| `GitDiffSkill` | Extracts git diffs between refs |
+| `FileAnalysisSkill` | Detects changed source files + discovers nearby test context |
+| `PromptLoaderSkill` | Loads co-located prompt templates with variable substitution |
+| `JestRunnerSkill` | Runs Jest test suite, captures results, format/lint auto-fix |
+| `PullRequestSkill` | Git branch ops, GitHub PR creation/update, comment posting |
+
+### Design Principles
+
+- **Composition over Inheritance**: Agents implement `IAgent` interface; skills implement `ISkill` interface. No abstract base classes.
+- **Skills are stateless**: Each skill receives context as input and returns a typed result.
+- **Structured observability**: Every agent and skill logs with `[AgentName][SkillName]` prefixes for CI debugging.
 
 ---
 
@@ -64,12 +98,12 @@ To prevent infinite workflow recursion when AI-generated test PRs are submitted:
 
 ## 🔄 Retry Loop Logic
 
-When generated unit tests fail initial execution:
-1. The error log is saved to `test_run.log`.
-2. `generate-tests.ts` is called with `--fix-mode --error-output test_run.log`.
-3. Gemini receives the source file, the failing test file, and the error traceback.
+When generated unit tests fail initial execution (handled inside `UnitTestGeneratorAgent`):
+1. Format & lint auto-fix is applied.
+2. Tests are re-run.
+3. If still failing, Gemini receives the source file, the failing test file, and the error traceback via `fix-prompt.md`.
 4. Gemini regenerates corrected test files without altering production logic.
-5. Up to 3 attempts are executed. If tests still fail after 3 attempts, the workflow fails fast and does NOT create a PR.
+5. Up to 3 attempts are executed. If tests still fail after 3 attempts, the agent returns failure and the workflow stops.
 
 ---
 

@@ -39,3 +39,7 @@ Followed by structured sections:
 
 ### ℹ️ General Observations (if any)
 ...
+
+## Diff Content
+
+{{diff}}
