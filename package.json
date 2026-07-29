@@ -27,12 +27,16 @@
     "test": "turbo test",
     "dev:api": "npm run start:dev -w api",
     "build:api": "npm run build -w api",
-    "coverage": "turbo coverage"
+    "coverage": "turbo coverage",
+    "test:agents": "jest --config scripts/jest.config.js"
   },
   "devDependencies": {
     "@google/generative-ai": "^0.24.0",
     "@octokit/rest": "^21.1.1",
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
+    "jest": "^30.4.2",
+    "ts-jest": "^29.4.12",
     "turbo": "^2.10.7",
     "typescript": "^5.7.3"
   }

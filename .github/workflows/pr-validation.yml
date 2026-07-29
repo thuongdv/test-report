@@ -43,6 +43,7 @@ jobs:
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-2.5-flash' }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -53,52 +54,14 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: "24"
+          cache: "npm"
 
-      - name: Install Gemini CLI
-        run: npm install -g @google/gemini-cli
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Run AI Code Review
-        id: review
+      - name: Run AI Code Review Agent
         env:
-          GEMINI_CLI_TRUST_WORKSPACE: true
-        run: |
-          DIFF_CONTENT=$(git diff "origin/${{ github.base_ref }}...HEAD")
-
-          if [ -z "$DIFF_CONTENT" ]; then
-            echo "No code changes detected in diff."
-            echo "review_status=skipped" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          PROMPT_TEXT=$(cat prompts/review.md)
-
-          echo "$DIFF_CONTENT" | gemini -p "$PROMPT_TEXT" > review-output.md
-
-          if grep -qi "BLOCKING\|CRITICAL" review-output.md; then
-            echo "review_status=blocking" >> "$GITHUB_OUTPUT"
-          else
-            echo "review_status=pass" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Post Review Comment to PR
-        if: always() && steps.review.outputs.review_status != 'skipped' && hashFiles('review-output.md') != ''
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const reviewText = fs.readFileSync('review-output.md', 'utf8');
-            const status = '${{ steps.review.outputs.review_status }}';
-            const icon = status === 'blocking' ? '🚨' : '✅';
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              body: `## ${icon} Gemini AI Code Review Summary\n\n${reviewText}`
-            });
-
-      - name: Fail Workflow if Blocking Issues Found
-        if: steps.review.outputs.review_status == 'blocking'
-        run: |
-          echo "::error::Gemini AI review identified critical or blocking issues. Please check the PR review comment."
-          exit 1
+          BASE_REF: "origin/${{ github.base_ref }}"
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: npx ts-node scripts/agents/cli.ts review
