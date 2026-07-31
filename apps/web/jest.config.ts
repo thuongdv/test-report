@@ -6,6 +6,18 @@ const createJestConfig = nextJest({
 });
 
 const config: Config = {
+  collectCoverage: true,
+  coverageReporters: [
+    'json',
+    'lcov',
+    'text-summary',
+    'text',
+  ],
+  coverageDirectory: '<rootDir>/coverage',
+  collectCoverageFrom: [
+    "src/**/*.{ts,tsx}",
+    "!src/**/*.stories.tsx",
+  ],
   coverageProvider: 'v8',
   testEnvironment: 'jsdom',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],

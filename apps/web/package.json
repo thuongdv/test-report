@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "jest",
+    "test:cov": "jest --coverage",
+    "coverage": "jest --coverage",
     "format:check": "prettier --check \"src/**/*.tsx\"",
     "format": "prettier --write \"src/**/*.tsx\""
   },

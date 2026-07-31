@@ -27,6 +27,7 @@
     "test": "turbo test",
     "dev:api": "npm run start:dev -w api",
     "build:api": "npm run build -w api",
+    "coverage": "turbo coverage",
     "test:agents": "jest --config scripts/jest.config.js"
   },
   "devDependencies": {
